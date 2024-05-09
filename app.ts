@@ -31,7 +31,7 @@ const tools = [
         "name": "execute_python",
         "description": "Execute python code in a Jupyter notebook cell and returns any result, stdout, stderr, display_data, and error.",
         "input_schema": {
-            "type": "object",  // Correct type
+            "type": "object",
             "properties": {
                 "code": {
                     "type": "string",
@@ -43,6 +43,7 @@ const tools = [
     }
 ];
 
+
 async function codeInterpret(codeInterpreter: CodeInterpreter, code: string) {
     console.log("Running code interpreter...");
 
@@ -50,19 +51,23 @@ async function codeInterpret(codeInterpreter: CodeInterpreter, code: string) {
         const exec = await codeInterpreter.notebook.execCell(code, {
             onStderr: (msg: ProcessMessage) => console.log("[Code Interpreter stderr]", msg),
             onStdout: (stdout: ProcessMessage) => console.log("[Code Interpreter stdout]", stdout),
+            // You can also stream additional results like charts, images, etc.
+            // onResult: ...
         });
 
         if (exec.error) {
             console.log("[Code Interpreter ERROR]", exec.error);
-            return [];
+            return undefined;
         }
 
-        return exec.results || [];  // Ensure that 'results' is the correct property and always return an array
+        return exec.results;  // Ensure that 'results' is the correct property
     } catch (error) {
         console.error("Error during code execution:", error);
-        return [];
+        return undefined;
     }
 }
+
+
 
 const client = new Anthropic({
     apiKey: ANTHROPIC_API_KEY,
@@ -83,6 +88,43 @@ async function chatWithClaude(codeInterpreter: CodeInterpreter, userMessage: str
         system: SYSTEM_PROMPT,
         max_tokens: 4096,
         messages: [{ role: "user", content: userMessage }],
-        tools: tools as any,  // Casting to '
-    })
+        tools: tools,
+    });
+
+    console.log(`\nInitial Response:\nStop Reason: ${message.stop_reason}\nContent: ${message.content}`);
+
+    if (message.stop_reason === "tool_use") {
+        const toolUse = message.content.find(block => block.type === "tool_use");
+        const toolName = toolUse.name;
+        const toolInput = toolUse.input;
+
+        console.log(`\nTool Used: ${toolName}\nTool Input: ${JSON.stringify(toolInput)}`);
+
+        const codeInterpreterResults = await processToolCall(codeInterpreter, toolName, toolInput);
+        console.log(`Tool Result: ${codeInterpreterResults}`);
+        return codeInterpreterResults;
+    }
 }
+
+
+
+async function main() {
+    const codeInterpreter = new CodeInterpreter({ apiKey: E2B_API_KEY });
+
+    try {
+        const codeInterpreterResults = await chatWithClaude(
+            codeInterpreter,
+            "Calculate value of pi using monte carlo method. Use 1000 iterations. Visualize all point of all iterations on a single plot, a point inside the unit circle should be green, other points should be gray."
+        );
+
+        const result = codeInterpreterResults[0];
+        console.log(result);
+
+        // This would display or process the image/result if applicable
+        // You might need additional logic here to handle images or other outputs
+    } catch (error) {
+        console.error('An error occurred:', error);
+    }
+}
+
+main();
