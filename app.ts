@@ -85,3 +85,4 @@ async function chatWithClaude(codeInterpreter: CodeInterpreter, userMessage: str
         messages: [{ role: "user", content: userMessage }],
         tools: tools as any,  // Casting to '
     })
+}
