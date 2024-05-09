@@ -108,6 +108,29 @@ async function chatWithClaude(codeInterpreter: CodeInterpreter, userMessage: str
 
 
 
+async function main() {
+    const codeInterpreter = new CodeInterpreter({ apiKey: E2B_API_KEY });
+
+    try {
+        const codeInterpreterResults = await chatWithClaude(
+            codeInterpreter,
+            "Calculate value of pi using monte carlo method. Use 1000 iterations. Visualize all point of all iterations on a single plot, a point inside the unit circle should be green, other points should be gray."
+        );
+
+        const result = codeInterpreterResults[0];
+        console.log(result);
+
+        // This would display or process the image/result if applicable
+        // You might need additional logic here to handle images or other outputs
+    } catch (error) {
+        console.error('An error occurred:', error);
+    }
+}
+
+main();
+
+
+
 ///////////////////////// TBD - probably delete this
 
 // // Initialize Anthropic client
