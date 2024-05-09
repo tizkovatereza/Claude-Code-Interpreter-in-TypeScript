@@ -37,6 +37,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 // Import necessary libraries
 const axios_1 = __importDefault(require("axios"));
+const sdk_1 = require("@anthropic-ai/sdk");
 // Constants: API Keys and Model Name
 const dotenv = __importStar(require("dotenv"));
 dotenv.config();
@@ -59,7 +60,10 @@ you are a python data scientist. you are given tasks to complete and you run pyt
 tool response values that have text inside "[]"  mean that a visual element got rended in the notebook. for example:
 - "[chart]" means that a chart was generated in the notebook.
 `;
-// Axios instance for API requests
+const anthropic = new sdk_1.Anthropic({
+    apiKey: 'ANTHROPIC_API_KEY', // Replace 'Your_API_Key' with your actual API key
+});
+// TBD - fix this. 
 const axiosInstance = axios_1.default.create({
     baseURL: 'https://api.anthropic.com',
     headers: {

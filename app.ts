@@ -1,5 +1,6 @@
 // Import necessary libraries
 import axios from 'axios';
+import { Anthropic } from '@anthropic-ai/sdk';
 
 // Constants: API Keys and Model Name
 
@@ -28,7 +29,29 @@ tool response values that have text inside "[]"  mean that a visual element got 
 - "[chart]" means that a chart was generated in the notebook.
 `;
 
-// TBD - fix this. 
+
+const anthropic = new Anthropic({
+    apiKey: 'ANTHROPIC_API_KEY',  // Replace 'Your_API_Key' with your actual API key
+});
+
+
+async function sendMessageToAnthropic(inputText: string) {
+    try {
+        const response = await anthropic.beta.tools.messages.create({
+            max_tokens: 1024,
+            messages: [{ role: 'user', content: inputText }],
+            model: 'claude-3-opus-20240229',  // Ensure this is the correct model name
+        });
+        
+        console.log('Response from Anthropic:', response);
+    } catch (error) {
+        console.error('Error calling the Anthropic API:', error);
+    }
+}
+
+
+
+// TBD - fix this.  This is probably redundant and is wrong call to Anthropic.
 const axiosInstance = axios.create({
     baseURL: 'https://api.anthropic.com',
     headers: {
