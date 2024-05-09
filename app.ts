@@ -1,7 +1,8 @@
 // Import necessary libraries and SDKs
 import { Anthropic } from '@anthropic-ai/sdk';
-import { CodeInterpreter } from '@e2b/code-interpreter'
+import { CodeInterpreter } from '@e2b/code-interpreter';
 import * as dotenv from 'dotenv';
+import { ProcessMessage } from '@e2b/code-interpreter';
 dotenv.config();
 
 // Constants: API Keys, Model Name, and system prompt
@@ -42,55 +43,105 @@ const tools = [
     }
 ];
 
-// Initialize Anthropic client
-const anthropic = new Anthropic({
+
+async function codeInterpret(codeInterpreter: CodeInterpreter, code: string) {
+    console.log("Running code interpreter...");
+
+    try {
+        const exec = await codeInterpreter.notebook.execCell(code, {
+            onStderr: (msg: ProcessMessage) => console.log("[Code Interpreter stderr]", msg),
+            onStdout: (stdout: ProcessMessage) => console.log("[Code Interpreter stdout]", stdout),
+            // You can also stream additional results like charts, images, etc.
+            // onResult: ...
+        });
+
+        if (exec.error) {
+            console.log("[Code Interpreter ERROR]", exec.error);
+            return undefined;
+        }
+
+        return exec.results;  // Ensure that 'results' is the correct property
+    } catch (error) {
+        console.error("Error during code execution:", error);
+        return undefined;
+    }
+}
+
+
+
+const client = new Anthropic({
     apiKey: ANTHROPIC_API_KEY,
 });
 
-// Placeholder for E2B Code Interpreter functionality
-// You need to replace this with actual E2B SDK initialization if available
-class codeInterpreter {
-    apiKey: string;
-
-    constructor(apiKey: string) {
-        this.apiKey = apiKey;
+async function processToolCall(codeInterpreter: CodeInterpreter, toolName: string, toolInput: any): Promise<any[]> {
+    if (toolName === "execute_python") {
+        return await codeInterpret(codeInterpreter, toolInput["code"]);
     }
-
-    async execCell(code: string): Promise<any> {
-        // Simulate sending code to the E2B sandbox
-        console.log("Executing code in the E2B sandbox:", code);
-        // Placeholder for actual API call
-        return { result: "Result of executing the provided code", error: null };
-    }
+    return [];
 }
 
+async function chatWithClaude(codeInterpreter: CodeInterpreter, userMessage: string) {
+    console.log(`\n${'='.repeat(50)}\nUser Message: ${userMessage}\n${'='.repeat(50)}`);
 
-// Function to process messages with tool invocation
-async function processMessageWithTools(inputText: string) {
-    try {
-        const response = await anthropic.beta.tools.messages.create({
-            model: MODEL_NAME,
-            messages: [{ role: 'user', content: inputText }],
-            max_tokens: 1024,
-        });
+    const message = await client.beta.tools.messages.create({
+        model: MODEL_NAME,
+        system: SYSTEM_PROMPT,
+        max_tokens: 4096,
+        messages: [{ role: "user", content: userMessage }],
+        tools: tools,
+    });
 
-        // Simulate tool use response and action
-        if (response.stop_reason === "tool_use") {
-            const toolCode = `Your Python code to execute based on the model's response`;
-            const execResult = await codeInterpreter.execCell(toolCode);
-            console.log("Tool Execution Result:", execResult);
-        }
+    console.log(`\nInitial Response:\nStop Reason: ${message.stop_reason}\nContent: ${message.content}`);
 
-        console.log('Response from Anthropic:', response);
-    } catch (error) {
-        console.error('Error processing message with tools:', error);
+    if (message.stop_reason === "tool_use") {
+        const toolUse = message.content.find(block => block.type === "tool_use");
+        const toolName = toolUse.name;
+        const toolInput = toolUse.input;
+
+        console.log(`\nTool Used: ${toolName}\nTool Input: ${JSON.stringify(toolInput)}`);
+
+        const codeInterpreterResults = await processToolCall(codeInterpreter, toolName, toolInput);
+        console.log(`Tool Result: ${codeInterpreterResults}`);
+        return codeInterpreterResults;
     }
 }
 
-// Example usage
-async function main() {
-    const userMessage = 'Calculate value of pi using monte carlo method. Use 1000 iterations.';
-    await processMessageWithTools(userMessage);
-}
 
-main();
+
+///////////////////////// TBD - probably delete this
+
+// // Initialize Anthropic client
+// const anthropic = new Anthropic({
+//     apiKey: ANTHROPIC_API_KEY,
+// });
+
+
+// // Function to process messages with tool invocation
+// async function processMessageWithTools(inputText: string) {
+//     try {
+//         const response = await anthropic.beta.tools.messages.create({
+//             model: MODEL_NAME,
+//             messages: [{ role: 'user', content: inputText }],
+//             max_tokens: 1024,
+//         });
+
+//         // Simulate tool use response and action
+//         if (response.stop_reason === "tool_use") {
+//             const toolCode = `Your Python code to execute based on the model's response`;
+//             const execResult = await codeInterpreter.execCell(toolCode);
+//             console.log("Tool Execution Result:", execResult);
+//         }
+
+//         console.log('Response from Anthropic:', response);
+//     } catch (error) {
+//         console.error('Error processing message with tools:', error);
+//     }
+// }
+
+// // Example usage
+// async function main() {
+//     const userMessage = 'Calculate value of pi using monte carlo method. Use 1000 iterations.';
+//     await processMessageWithTools(userMessage);
+// }
+
+// main();

@@ -32,7 +32,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.codeInterpret = void 0;
 // Import necessary libraries and SDKs
 const sdk_1 = require("@anthropic-ai/sdk");
 const dotenv = __importStar(require("dotenv"));
@@ -41,6 +40,60 @@ dotenv.config();
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const E2B_API_KEY = process.env.E2B_API_KEY;
 const MODEL_NAME = 'claude-3-opus-20240229';
+const SYSTEM_PROMPT = `
+## your job & context
+you are a python data scientist. you are given tasks to complete and you run python code to solve them.
+- the python code runs in jupyter notebook.
+- every time you call \`execute_python\` tool, the python code is executed in a separate cell. it's okay to multiple calls to \`execute_python\`.
+- display visualizations using matplotlib or any other visualization library directly in the notebook. don't worry about saving the visualizations to a file.
+- you have access to the internet and can make api requests.
+- you also have access to the filesystem and can read/write files.
+- you can install any pip package (if it exists) if you need to but the usual packages for data analysis are already preinstalled.
+- you can run any python code you want, everything is running in a secure sandbox environment.
+
+## style guide
+tool response values that have text inside "[]"  mean that a visual element got rendered in the notebook. for example:
+- "[chart]" means that a chart was generated in the notebook.
+`;
+const tools = [
+    {
+        "name": "execute_python",
+        "description": "Execute python code in a Jupyter notebook cell and returns any result, stdout, stderr, display_data, and error.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "description": "The python code to execute in a single cell."
+                }
+            },
+            "required": ["code"]
+        }
+    }
+];
+function codeInterpret(codeInterpreter, code) {
+    return __awaiter(this, void 0, void 0, function* () {
+        console.log("Running code interpreter...");
+        try {
+            const exec = yield codeInterpreter.notebook.execCell(code, {
+                onStderr: (msg) => console.log("[Code Interpreter stderr]", msg),
+                onStdout: (stdout) => console.log("[Code Interpreter stdout]", stdout),
+                // You can also stream additional results like charts, images, etc.
+                // onResult: ...
+            });
+            if (exec.error) {
+                console.log("[Code Interpreter ERROR]", exec.error);
+                return undefined;
+            }
+            return exec.results; // Ensure that 'results' is the correct property
+        }
+        catch (error) {
+            console.error("Error during code execution:", error);
+            return undefined;
+        }
+    });
+}
+///////////////////////// TBD - update this:
 // Initialize Anthropic client
 const anthropic = new sdk_1.Anthropic({
     apiKey: ANTHROPIC_API_KEY,
@@ -60,19 +113,6 @@ class codeInterpreter {
         });
     }
 }
-// Initialize E2B Code Interpreter
-function codeInterpret(codeInterpreter, code) {
-    return __awaiter(this, void 0, void 0, function* () {
-        console.log(`\n${'='.repeat(50)}\n> Running following AI-generated code:\n${code}\n${'='.repeat(50)}`);
-        const exec = yield codeInterpreter.execCell(code);
-        if (exec.error) {
-            console.log('[Code Interpreter error]', exec.error); // Runtime error
-            return undefined;
-        }
-        return exec;
-    });
-}
-exports.codeInterpret = codeInterpret;
 // Function to process messages with tool invocation
 function processMessageWithTools(inputText) {
     return __awaiter(this, void 0, void 0, function* () {
