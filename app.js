@@ -31,61 +31,67 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-// Import necessary libraries
-const axios_1 = __importDefault(require("axios"));
+exports.codeInterpret = void 0;
+// Import necessary libraries and SDKs
 const sdk_1 = require("@anthropic-ai/sdk");
-// Constants: API Keys and Model Name
 const dotenv = __importStar(require("dotenv"));
 dotenv.config();
-const E2B_API_KEY = process.env.E2B_API_KEY;
+// Constants: API Keys, Model Name, and system prompt
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const E2B_API_KEY = process.env.E2B_API_KEY;
 const MODEL_NAME = 'claude-3-opus-20240229';
-// Define the system prompt
-const SYSTEM_PROMPT = `
-## your job & context
-you are a python data scientist. you are given tasks to complete and you run python code to solve them.
-- the python code runs in jupyter notebook.
-- every time you call \`execute_python\` tool, the python code is executed in a separate cell. it's okay to multiple calls to \`execute_python\`.
-- display visualizations using matplotlib or any other visualization library directly in the notebook. don't worry about saving the visualizations to a file.
-- you have access to the internet and can make api requests.
-- you also have access to the filesystem and can read/write files.
-- you can install any pip package (if it exists) if you need to but the usual packages for data analysis are already preinstalled.
-- you can run any python code you want, everything is running in a secure sandbox environment.
-
-## style guide
-tool response values that have text inside "[]"  mean that a visual element got rended in the notebook. for example:
-- "[chart]" means that a chart was generated in the notebook.
-`;
+// Initialize Anthropic client
 const anthropic = new sdk_1.Anthropic({
-    apiKey: 'ANTHROPIC_API_KEY', // Replace 'Your_API_Key' with your actual API key
+    apiKey: ANTHROPIC_API_KEY,
 });
-// TBD - fix this. 
-const axiosInstance = axios_1.default.create({
-    baseURL: 'https://api.anthropic.com',
-    headers: {
-        'Authorization': `Bearer ${ANTHROPIC_API_KEY}`,
-        'Content-Type': 'application/json'
+// Placeholder for E2B Code Interpreter functionality
+// You need to replace this with actual E2B SDK initialization if available
+class codeInterpreter {
+    constructor(apiKey) {
+        this.apiKey = apiKey;
     }
-});
-// Function to create messages using Anthropic API
-function createMessage(userMessage) {
+    execCell(code) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Simulate sending code to the E2B sandbox
+            console.log("Executing code in the E2B sandbox:", code);
+            // Placeholder for actual API call
+            return { result: "Result of executing the provided code", error: null };
+        });
+    }
+}
+// Initialize E2B Code Interpreter
+function codeInterpret(codeInterpreter, code) {
+    return __awaiter(this, void 0, void 0, function* () {
+        console.log(`\n${'='.repeat(50)}\n> Running following AI-generated code:\n${code}\n${'='.repeat(50)}`);
+        const exec = yield codeInterpreter.execCell(code);
+        if (exec.error) {
+            console.log('[Code Interpreter error]', exec.error); // Runtime error
+            return undefined;
+        }
+        return exec;
+    });
+}
+exports.codeInterpret = codeInterpret;
+// Function to process messages with tool invocation
+function processMessageWithTools(inputText) {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const response = yield axiosInstance.post('/messages', {
+            const response = yield anthropic.beta.tools.messages.create({
                 model: MODEL_NAME,
-                system: SYSTEM_PROMPT,
-                max_tokens: 4096,
-                messages: [{ role: "user", content: userMessage }]
+                messages: [{ role: 'user', content: inputText }],
+                max_tokens: 1024,
             });
-            return response.data;
+            // Simulate tool use response and action
+            if (response.stop_reason === "tool_use") {
+                const toolCode = `Your Python code to execute based on the model's response`;
+                const execResult = yield codeInterpreter.execCell(toolCode);
+                console.log("Tool Execution Result:", execResult);
+            }
+            console.log('Response from Anthropic:', response);
         }
         catch (error) {
-            console.error('Error calling the Anthropic API:', error);
-            return null;
+            console.error('Error processing message with tools:', error);
         }
     });
 }
@@ -93,8 +99,7 @@ function createMessage(userMessage) {
 function main() {
     return __awaiter(this, void 0, void 0, function* () {
         const userMessage = 'Calculate value of pi using monte carlo method. Use 1000 iterations.';
-        const response = yield createMessage(userMessage);
-        console.log('API Response:', response);
+        yield processMessageWithTools(userMessage);
     });
 }
 main();
