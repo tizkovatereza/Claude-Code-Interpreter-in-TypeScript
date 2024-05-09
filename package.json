@@ -11,9 +11,14 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@e2b/code-interpreter": "^0.0.4",
     "@types/axios": "^0.14.0",
-    "@types/node": "^20.12.11",
     "axios": "^1.6.8",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.11",
+    "tsx": "^4.9.3",
     "typescript": "^5.4.5"
   }
 }

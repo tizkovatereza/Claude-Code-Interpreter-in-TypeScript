@@ -51,6 +51,22 @@ Create a TypeScript configuration file:
 
 This will create tsconfig.json file.
 
+Install dotenv for accessing environment variables.
+
+` npm install dotenv `.
+
+Install Antrhopic AI SDK:
+
+` npm install @anthropic-ai/sdk `
+
+and E2B Code Interpreter SDK:
+
+
+```npm init -y \ 
+&& npm i --save-dev typescript tsx @types/node \
+&& npm i @e2b/code-interpreter
+```
+
 
 ## 2. Create TypeScript file
 
