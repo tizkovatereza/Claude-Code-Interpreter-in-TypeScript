@@ -1,40 +1,7 @@
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
 // Import necessary libraries and SDKs
-const sdk_1 = require("@anthropic-ai/sdk");
-const dotenv = __importStar(require("dotenv"));
+import { Anthropic } from '@anthropic-ai/sdk';
+import { CodeInterpreter } from '@e2b/code-interpreter';
+import * as dotenv from 'dotenv';
 dotenv.config();
 // Constants: API Keys, Model Name, and system prompt
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -60,7 +27,7 @@ const tools = [
         "name": "execute_python",
         "description": "Execute python code in a Jupyter notebook cell and returns any result, stdout, stderr, display_data, and error.",
         "input_schema": {
-            "type": "object", // Correct type
+            "type": "object",
             "properties": {
                 "code": {
                     "type": "string",
@@ -71,46 +38,68 @@ const tools = [
         }
     }
 ];
-function codeInterpret(codeInterpreter, code) {
-    return __awaiter(this, void 0, void 0, function* () {
-        console.log("Running code interpreter...");
-        try {
-            const exec = yield codeInterpreter.notebook.execCell(code, {
-                onStderr: (msg) => console.log("[Code Interpreter stderr]", msg),
-                onStdout: (stdout) => console.log("[Code Interpreter stdout]", stdout),
-            });
-            if (exec.error) {
-                console.log("[Code Interpreter ERROR]", exec.error);
-                return [];
-            }
-            return exec.results || []; // Ensure that 'results' is the correct property and always return an array
-        }
-        catch (error) {
-            console.error("Error during code execution:", error);
-            return [];
-        }
+async function codeInterpret(codeInterpreter, code) {
+    console.log("Running code interpreter...");
+    const exec = await codeInterpreter.notebook.execCell(code, {
+        onStderr: (msg) => console.log("[Code Interpreter stderr]", msg),
+        onStdout: (stdout) => console.log("[Code Interpreter stdout]", stdout),
+        // You can also stream additional results like charts, images, etc.
+        // onResult: ...
     });
+    console.log(2);
+    if (exec.error) {
+        console.log("[Code Interpreter ERROR]", exec.error);
+        // return undefined;
+        throw new Error(exec.error.value);
+    }
+    console.log(3);
+    return exec.results; // Ensure that 'results' is the correct property
 }
-const client = new sdk_1.Anthropic({
+const client = new Anthropic({
     apiKey: ANTHROPIC_API_KEY,
 });
-function processToolCall(codeInterpreter, toolName, toolInput) {
-    return __awaiter(this, void 0, void 0, function* () {
-        if (toolName === "execute_python") {
-            return yield codeInterpret(codeInterpreter, toolInput["code"]);
+async function processToolCall(codeInterpreter, toolName, toolInput) {
+    if (toolName === "execute_python") {
+        return await codeInterpret(codeInterpreter, toolInput["code"]);
+    }
+    return [];
+}
+async function chatWithClaude(codeInterpreter, userMessage) {
+    console.log(`\n${'='.repeat(50)}\nUser Message: ${userMessage}\n${'='.repeat(50)}`);
+    const message = await client.beta.tools.messages.create({
+        model: MODEL_NAME,
+        system: SYSTEM_PROMPT,
+        max_tokens: 4096,
+        messages: [{ role: "user", content: userMessage }],
+        tools: tools,
+    });
+    console.log(`\nInitial Response:\nStop Reason: ${message.stop_reason}`);
+    if (message.stop_reason === "tool_use") {
+        const toolUse = message.content.find(block => block.type === "tool_use");
+        if (!toolUse) {
+            console.error("Tool use block not found in message content.");
+            return [];
         }
-        return [];
-    });
+        const toolName = toolUse.name;
+        const toolInput = toolUse.input;
+        console.log(`\nTool Used: ${toolName}\nTool Input: ${JSON.stringify(toolInput)}`);
+        const codeInterpreterResults = await processToolCall(codeInterpreter, toolName, toolInput);
+        console.log(`Tool Result: ${codeInterpreterResults}`);
+        return codeInterpreterResults;
+    }
+    throw new Error("Tool use block not found in message content.");
 }
-function chatWithClaude(codeInterpreter, userMessage) {
-    return __awaiter(this, void 0, void 0, function* () {
-        console.log(`\n${'='.repeat(50)}\nUser Message: ${userMessage}\n${'='.repeat(50)}`);
-        const message = yield client.beta.tools.messages.create({
-            model: MODEL_NAME,
-            system: SYSTEM_PROMPT,
-            max_tokens: 4096,
-            messages: [{ role: "user", content: userMessage }],
-            tools: tools, // Casting to '
-        });
-    });
+async function main() {
+    const codeInterpreter = new CodeInterpreter({ apiKey: E2B_API_KEY });
+    try {
+        const codeInterpreterResults = await chatWithClaude(codeInterpreter, "Calculate value of pi using monte carlo method. Use 1000 iterations. Visualize all point of all iterations on a single plot, a point inside the unit circle should be green, other points should be gray.");
+        const result = codeInterpreterResults[0];
+        console.log("Result:", result);
+        // This would display or process the image/result if applicable
+        // You might need additional logic here to handle images or other outputs
+    }
+    catch (error) {
+        console.error('An error occurred:', error);
+    }
 }
+await main();

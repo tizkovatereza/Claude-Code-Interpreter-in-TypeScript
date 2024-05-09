@@ -1,8 +1,9 @@
 // Import necessary libraries and SDKs
 import { Anthropic } from '@anthropic-ai/sdk';
-import { CodeInterpreter } from '@e2b/code-interpreter';
+import { CodeInterpreter, Result } from '@e2b/code-interpreter';
 import * as dotenv from 'dotenv';
 import { ProcessMessage } from '@e2b/code-interpreter';
+import { Tool, ToolUseBlock } from '@anthropic-ai/sdk/resources/beta/tools/messages';
 dotenv.config();
 
 // Constants: API Keys, Model Name, and system prompt
@@ -26,7 +27,7 @@ tool response values that have text inside "[]"  mean that a visual element got 
 - "[chart]" means that a chart was generated in the notebook.
 `;
 
-const tools = [
+const tools: Array<Tool> = [
     {
         "name": "execute_python",
         "description": "Execute python code in a Jupyter notebook cell and returns any result, stdout, stderr, display_data, and error.",
@@ -44,27 +45,24 @@ const tools = [
 ];
 
 
-async function codeInterpret(codeInterpreter: CodeInterpreter, code: string) {
+async function codeInterpret(codeInterpreter: CodeInterpreter, code: string): Promise<Result[]> {
     console.log("Running code interpreter...");
 
-    try {
-        const exec = await codeInterpreter.notebook.execCell(code, {
-            onStderr: (msg: ProcessMessage) => console.log("[Code Interpreter stderr]", msg),
-            onStdout: (stdout: ProcessMessage) => console.log("[Code Interpreter stdout]", stdout),
-            // You can also stream additional results like charts, images, etc.
-            // onResult: ...
-        });
-
-        if (exec.error) {
-            console.log("[Code Interpreter ERROR]", exec.error);
-            return undefined;
-        }
-
-        return exec.results;  // Ensure that 'results' is the correct property
-    } catch (error) {
-        console.error("Error during code execution:", error);
-        return undefined;
+    const exec = await codeInterpreter.notebook.execCell(code, {
+        onStderr: (msg: ProcessMessage) => console.log("[Code Interpreter stderr]", msg),
+        onStdout: (stdout: ProcessMessage) => console.log("[Code Interpreter stdout]", stdout),
+        // You can also stream additional results like charts, images, etc.
+        // onResult: ...
+    });
+    console.log(2)
+    if (exec.error) {
+        console.log("[Code Interpreter ERROR]", exec.error);
+        // return undefined;
+        throw new Error(exec.error.value);
     }
+    console.log(3)
+    return exec.results;  // Ensure that 'results' is the correct property
+
 }
 
 
@@ -73,14 +71,14 @@ const client = new Anthropic({
     apiKey: ANTHROPIC_API_KEY,
 });
 
-async function processToolCall(codeInterpreter: CodeInterpreter, toolName: string, toolInput: any): Promise<any[]> {
+async function processToolCall(codeInterpreter: CodeInterpreter, toolName: string, toolInput: any): Promise<Result[]> {
     if (toolName === "execute_python") {
         return await codeInterpret(codeInterpreter, toolInput["code"]);
     }
     return [];
 }
 
-async function chatWithClaude(codeInterpreter: CodeInterpreter, userMessage: string) {
+async function chatWithClaude(codeInterpreter: CodeInterpreter, userMessage: string): Promise<Result[]> {
     console.log(`\n${'='.repeat(50)}\nUser Message: ${userMessage}\n${'='.repeat(50)}`);
 
     const message = await client.beta.tools.messages.create({
@@ -91,10 +89,15 @@ async function chatWithClaude(codeInterpreter: CodeInterpreter, userMessage: str
         tools: tools,
     });
 
-    console.log(`\nInitial Response:\nStop Reason: ${message.stop_reason}\nContent: ${message.content}`);
+    console.log(`\nInitial Response:\nStop Reason: ${message.stop_reason}`);
 
     if (message.stop_reason === "tool_use") {
-        const toolUse = message.content.find(block => block.type === "tool_use");
+        const toolUse = message.content.find(block => block.type === "tool_use") as ToolUseBlock;
+        if (!toolUse){
+            console.error("Tool use block not found in message content.");
+            return [];
+        }
+
         const toolName = toolUse.name;
         const toolInput = toolUse.input;
 
@@ -104,6 +107,7 @@ async function chatWithClaude(codeInterpreter: CodeInterpreter, userMessage: str
         console.log(`Tool Result: ${codeInterpreterResults}`);
         return codeInterpreterResults;
     }
+    throw new Error("Tool use block not found in message content."); 
 }
 
 
@@ -118,12 +122,14 @@ async function main() {
         );
 
         const result = codeInterpreterResults[0];
-        console.log(result);
+        console.log("Result:", result);
 
         // This would display or process the image/result if applicable
         // You might need additional logic here to handle images or other outputs
     } catch (error) {
         console.error('An error occurred:', error);
+    } finally {
+        await codeInterpreter.close();
     }
 }
 
