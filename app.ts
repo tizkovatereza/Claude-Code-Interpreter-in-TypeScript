@@ -2,6 +2,7 @@
 import { Anthropic } from '@anthropic-ai/sdk';
 import { CodeInterpreter } from '@e2b/code-interpreter';
 import * as dotenv from 'dotenv';
+import { ProcessMessage } from '@e2b/code-interpreter';
 dotenv.config();
 
 // Constants: API Keys, Model Name, and system prompt
