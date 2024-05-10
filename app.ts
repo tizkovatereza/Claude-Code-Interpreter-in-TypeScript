@@ -4,6 +4,9 @@ import { CodeInterpreter, Result } from '@e2b/code-interpreter';
 import * as dotenv from 'dotenv';
 import { ProcessMessage } from '@e2b/code-interpreter';
 import { Tool, ToolUseBlock } from '@anthropic-ai/sdk/resources/beta/tools/messages';
+
+import fs from 'node:fs';
+
 dotenv.config();
 
 // Constants: API Keys, Model Name, and system prompt
@@ -113,16 +116,19 @@ async function chatWithClaude(codeInterpreter: CodeInterpreter, userMessage: str
 
 
 async function main() {
-    const codeInterpreter = new CodeInterpreter({ apiKey: E2B_API_KEY });
+    const codeInterpreter = await CodeInterpreter.create({ apiKey: E2B_API_KEY });
 
     try {
         const codeInterpreterResults = await chatWithClaude(
-            codeInterpreter,
+            await codeInterpreter,
             "Calculate value of pi using monte carlo method. Use 1000 iterations. Visualize all point of all iterations on a single plot, a point inside the unit circle should be green, other points should be gray."
         );
 
         const result = codeInterpreterResults[0];
         console.log("Result:", result);
+        if (result.png) {
+            fs.writeFileSync("very_pretty_image.png", Buffer.from(result.png, 'base64'))
+        }
 
         // This would display or process the image/result if applicable
         // You might need additional logic here to handle images or other outputs
